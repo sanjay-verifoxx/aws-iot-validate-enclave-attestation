@@ -1,0 +1,8 @@
+.DS_Store
+validate_doc/main
+validate_doc/*.dSYM
+.deps
+aclocal.m4
+config.*
+configure~
+.vscode

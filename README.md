@@ -35,6 +35,7 @@ $ export LDFLAGS="-L /usr/local/Cellar/openssl@1.1/1.1.1t/lib/ -L /usr/local/Cel
 
 ```bash
 $ cd validate_doc
+$ ./autogen.sh
 $ ./configure
 $ make
 ```

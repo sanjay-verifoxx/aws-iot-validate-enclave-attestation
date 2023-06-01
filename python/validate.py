@@ -76,31 +76,67 @@ class EC2NitroAttestationPayload:
         self._parse_attestation(self.payload)
 
     def _parse_attestation(self, raw_payload):
-        """Initialize using the raw dictionary parsed from the attestation doc"""
+        """Initialize and validate the payload using the raw dictionary parsed from the attestation doc."""
 
+        # Section 3.2.2.1. Check if the required fields are present
+        # - this will throw an exception if any of the required fields are missing
         self.module_id = raw_payload["module_id"]
         self.digest = raw_payload["digest"]
         self.timestamp = raw_payload["timestamp"]
         self.pcrs = raw_payload["pcrs"]
         self.certificate = raw_payload["certificate"]
         self.cabundle = raw_payload["cabundle"]
-        self.public_key = raw_payload["public_key"]
-        self.user_data = raw_payload["user_data"]
-        self.nonce = raw_payload["nonce"]
+        self.public_key = raw_payload.get("public_key", None)     # Optional
+        self.user_data = raw_payload.get("user_data", None)       # Optional
+        self.nonce = raw_payload.get("nonce", None)               # Optional
 
-        # validate the types of the data retrieved
-        if type(self.module_id) != str:
-            raise Exception("module_id not a string")
-        if type(self.digest) != str:
-            raise Exception("digest type is not a string")
-        if type(self.timestamp) != int:
-            raise Exception("timestamp is not an integer")
+        # Section 3.2.2.2. Check content
+        if type(self.module_id) != str or len(self.module_id) == 0:
+            raise Exception("module_id must be a non-empty string")
+        if type(self.digest) != str or self.digest != "SHA384":
+            raise Exception("digest type must be 'SHA384'")
+        if type(self.timestamp) != int or self.timestamp == 0:
+            raise Exception("timestamp must be a non-zero integer")
+        
         if type(self.pcrs) != dict:
             raise Exception("pcrs is not a dictionary")
-        if len(self.pcrs) != 16:
-            raise Exception("pcr list is not 16 entries long")
+        if len(self.pcrs) < 1 or len(self.pcrs) > 32:
+            raise Exception("pcrs must have at least 1 entry and no more than 32 entries")
+        for k,v in self.pcrs.items():
+            if type(k) != int or k not in range(32):
+                raise Exception(f"pcr map contains key {k} which is not within the range (0..31)")
+            if type(v) != bytes:
+                raise Exception(f"pcr map key {k} contains non-byte contents")
+            if len(v) not in (32, 48, 64):
+                raise Exception(f"pcr map key {k} contents are not 32, 48, or 64 bytes long")
+
         if type(self.cabundle) != list:
             raise Exception("cabundle is not a list")
+        if len(self.cabundle) < 1:
+            raise Exception("cabundle must contain at least 1 element")
+        for ca in self.cabundle:
+            if type(ca) != bytes:
+                raise Exception("cabundle contains non-byte string values")
+            if len(ca) < 1 or len(ca) > 1024:
+                raise Exception("cabundle entry must be between 1 and 1024 bytes")
+        
+        if self.public_key:
+            if type(self.public_key) != bytes:
+                raise Exception("public_key must be a bytestring")
+            if len(self.public_key) < 1 or len(self.public_key) > 1024:
+                raise Exception("public_key must be between 1 and 1024 bytes")
+        
+        if self.user_data:
+            if type(self.user_data) != bytes:
+                raise Exception("user_data must be a bytestring")
+            if len(self.user_data) < 1 or len(self.user_data) > 512:
+                raise Exception("user_data must be between 1 and 512 bytes")
+        
+        if self.nonce:
+            if type(self.nonce) != bytes:
+                raise Exception("nonce must be a bytestring")
+            if len(self.nonce) < 1 or len(self.nonce) > 512:
+                raise Exception("nonce must be between 1 and 512 bytes")
             
         # validate that we can read the x509 certificates inside, will raise if errors
         self._init_x509()
@@ -143,6 +179,8 @@ class EC2NitroAttestationPayload:
         store.add_cert(openssl_root_certificate)
 
         # Perform the validation
+        # TODO: there are additional checks in 3.2.3 Semantical validation for the X.509 certificates that are
+        #  not yet implemented here.
         try:
             store_ctx = crypto.X509StoreContext(store, self.x509_certificate, chain=self.x509_cabundle)
             store_ctx.verify_certificate()
@@ -162,6 +200,7 @@ class EC2NitroAttestationPayload:
     def __str__(self):
         ret_val = list()
         ret_val.append(f"Nitro Attestation Document for {self.module_id}:")
+        ret_val.append(f"Mandatory fields:")
         ret_val.append(f"- digest type: {self.digest}")
         ret_val.append(f"- timestamp: {datetime.fromtimestamp(self.timestamp / 1000)} GMT")
         ret_val.append(f"- PCR values:")
@@ -173,6 +212,7 @@ class EC2NitroAttestationPayload:
         ret_val.append(f"- Certificate issuer: {self.x509_certificate.get_issuer()}")
         ret_val.append(f"- Certificate subject: {self.x509_certificate.get_subject()}")
     
+        ret_val.append(f"Optional fields:")
         ret_val.append(f"- Public key: {self.public_key}")
         ret_val.append(f"- User data: {self.user_data}")
         ret_val.append(f"- Nonce: {self.nonce}")

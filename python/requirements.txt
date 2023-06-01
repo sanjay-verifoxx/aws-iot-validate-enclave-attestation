@@ -1,0 +1,5 @@
+cbor2
+pycose
+requests
+pyOpenSSL
+ec2-metadata

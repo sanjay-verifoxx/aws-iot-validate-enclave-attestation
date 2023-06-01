@@ -4,13 +4,10 @@
 import json
 import base64
 import socket
-import subprocess
 import ctypes
-import pathlib
 import argparse
 import sys
 
-KMS_PROXY_PORT="8000"
 DOC_MAX_SIZE = 16 * 1024
 
 

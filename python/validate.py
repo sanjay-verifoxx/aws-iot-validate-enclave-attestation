@@ -53,9 +53,7 @@ def get_nitro_root_certificate():
         raise Exception("Security issue: hash value of the downloaded root certificate does not match expected hash value")
 
     z = zipfile.ZipFile(BytesIO(enclave_zip))
-    z.open("root.pem")
-    root_certificate = z.open("root.pem").read()
-    return crypto.load_certificate(crypto.FILETYPE_PEM, root_certificate)
+    return z.open("root.pem").read()
 
 
 class EC2NitroAttestationPayload:
@@ -131,19 +129,18 @@ class EC2NitroAttestationPayload:
         })
         self.message.key = cose_key
 
-    def _validate_certificate_chain(self):
+    def _validate_certificate_chain(self, root_certificate):
         # Validate key hierarchy
         store = crypto.X509Store()
 
         # # Validate the certificate
         # 
-        # Use the `openssl_certificate` (the trusted root certificate we downloaded and validated earlier from the AWS website) to validate the enclave certificate bundle and leaf certificate we retrieved from the attestation document.
-        openssl_certificate = get_nitro_root_certificate()
+        # Use the `root_certificate` (the trusted root certificate we downloaded and validated earlier from the AWS website) to validate the enclave certificate bundle and leaf certificate we retrieved from the attestation document.
 
-        # Create an X509Store containing the trusted root certificate we downloaded 
-        # and validated earlier
+        # Create an X509Store containing the trusted root certificate
         store = crypto.X509Store()
-        store.add_cert(openssl_certificate)
+        openssl_root_certificate = crypto.load_certificate(crypto.FILETYPE_PEM, root_certificate)
+        store.add_cert(openssl_root_certificate)
 
         # Perform the validation
         try:
@@ -158,8 +155,8 @@ class EC2NitroAttestationPayload:
         
         return False
     
-    def validate(self):
-        if self._validate_certificate_chain():
+    def validate(self, root_certificate):
+        if self._validate_certificate_chain(root_certificate):
             return self.message.verify_signature()
 
     def __str__(self):
@@ -195,8 +192,11 @@ def main():
     print(payload)
     print()
 
+    # Download AWS Nitro Enclaves root certificate for validation
+    root_certificate = get_nitro_root_certificate()
+    
     # Validate the Enclave signature
-    if (payload.validate()):
+    if (payload.validate(root_certificate)):
         print("[+] MESSAGE VALIDATED!")
 
     # validate EC2 metadata with the Enclave attestation, if available

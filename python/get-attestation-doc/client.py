@@ -3,11 +3,8 @@
 # // SPDX-License-Identifier: MIT-0
 
 import json
-import base64
 import socket
 import subprocess
-from validate import EC2NitroAttestationPayload
-
 
 
 def get_cid():
@@ -19,7 +16,6 @@ def get_cid():
     output = json.loads(proc.communicate()[0].decode())
     enclave_cid = output[0]["EnclaveCID"]
     return enclave_cid
-
 
 
 def main():

@@ -13,6 +13,7 @@ import zipfile
 import requests
 import hashlib
 import sys
+import argparse
 
 from io import BytesIO
 from OpenSSL import crypto
@@ -26,19 +27,6 @@ from pycose.keys.keyparam import EC2KpCurve, EC2KpX, EC2KpY
 from pycose.keys.ec2 import EC2Key
 
 from ec2_metadata import ec2_metadata
-
-def get_ec2_metadata():
-    # Get the EC2 metadata for validation later
-    ec2_instance_id = None
-    ec2_instance_profile_arn = None
-
-    try:
-        ec2_instance_id = ec2_metadata.instance_id
-        ec2_instance_profile_arn = ec2_metadata.iam_info["InstanceProfileArn"]
-    except:
-        print("Could not retrieve EC2 metadata information; assuming this is not run on the EC2 host instance with the Enclave")
-    
-    return ec2_instance_id, ec2_instance_profile_arn
 
 
 def get_nitro_root_certificate():
@@ -69,11 +57,13 @@ class EC2NitroAttestationPayload:
     CURVE_LOOKUP = {c.curve_obj: c for c in CoseCurve.get_registered_classes().values() if c.curve_obj}
 
 
-    def __init__(self, raw_bytes):
+    def __init__(self, raw_bytes: bytes):
         # You have to add a hex `0xd2` to the beginning of the attestation (see the blog post for more details)
-        self.message = CoseMessage.decode(b"\xd2" + raw_bytes)
-        self.payload = cbor2.loads(self.message.payload)
-        self._parse_attestation(self.payload)
+        if raw_bytes[0] != b"\xd2":
+            raw_bytes = b"\xd2" + raw_bytes
+        self.message = CoseMessage.decode(raw_bytes)
+        payload = cbor2.loads(self.message.payload)
+        self._parse_attestation(payload)
 
     def _parse_attestation(self, raw_payload):
         """Initialize and validate the payload using the raw dictionary parsed from the attestation doc."""
@@ -222,10 +212,20 @@ class EC2NitroAttestationPayload:
 
 
 def main():
-    # # Open the attestation document
-    d = json.load(open("example-attestation-doc.json"))
+    parser = argparse.ArgumentParser("validate.py", description="Validate Nitro Enclaves Attestation document")
+    parser.add_argument("infile", type=argparse.FileType('rb'), default=sys.stdin)
+    parser.add_argument("--raw", "-r", action="store_true", help="Input is raw binary (default is JSON format from client.py)")
 
-    attestation = base64.b64decode(d["attestation"])
+    args = parser.parse_args()
+        
+    # # Open the attestation document
+
+    if args.raw:
+        attestation = args.infile.read()
+    else:
+        d = json.load(args.infile)
+        attestation = base64.b64decode(d["attestation"])
+
     payload = EC2NitroAttestationPayload(attestation)
 
     # Print out the Enclave attestation data
@@ -236,33 +236,25 @@ def main():
     root_certificate = get_nitro_root_certificate()
     
     # Validate the Enclave signature
-    if (payload.validate(root_certificate)):
-        print("[+] MESSAGE VALIDATED!")
+    if payload.validate(root_certificate):
+        print("[+] Signature matches, Enclave attestation is valid!")
+    else:
+        print("[!] Signature does not match, Enclave attestation document is invalid!")
 
-    # validate EC2 metadata with the Enclave attestation, if available
-    ec2_instance_id, ec2_instance_profile_arn = get_ec2_metadata()
-    if ec2_instance_id and ec2_instance_profile_arn:
-        hash_obj = hashlib.new(payload.digest)
-        hash_obj.update(b"\x00" * 48)
-        hash_obj.update(ec2_instance_id.encode('utf8'))
+    print()
 
-        print(f"hash of instance id ({ec2_instance_id}) = {hash_obj.hexdigest()}")
-        if hash_obj.hexdigest() == codecs.encode(payload.pcrs[4], 'hex').decode('utf8'):
-            print("[+] Hashes match for ec2 instance id")
-        else:
-            print('[-] Hashes DO NOT match for ec2 instance id')
+    # validate EC2 instance ID with the Enclave attestation document
+    enclave_id_idx = payload.module_id.rfind("-")
+    ec2_instance_id = payload.module_id[:enclave_id_idx]
+    hash_obj = hashlib.new(payload.digest)
+    hash_obj.update(b"\x00" * 48)
+    hash_obj.update(ec2_instance_id.encode('utf8'))
 
-        # Most of the time, the instance profile is just the name of the original role-
-        ec2_role_arn = ec2_instance_profile_arn.replace("instance-profile", "role")
-        hash_obj = hashlib.new(payload.digest)
-        hash_obj.update(b"\x00" * 48)
-        hash_obj.update(ec2_role_arn.encode('utf8'))
-
-        print(f"hash of instance role arn = ({ec2_role_arn}) = {hash_obj.hexdigest()}")
-        if hash_obj.hexdigest() == codecs.encode(payload.pcrs[3], 'hex').decode('utf8'):
-            print("[+] Hashes match for ec2 instance role")
-        else:
-            print('[-] Hashes DO NOT match for ec2 instance role')
+    print(f"hash of instance id ({ec2_instance_id}) = {hash_obj.hexdigest()}")
+    if hash_obj.hexdigest() == codecs.encode(payload.pcrs[4], 'hex').decode('utf8'):
+        print("[+] Hashes match for ec2 instance id")
+    else:
+        print('[-] Hashes DO NOT match for ec2 instance id')
 
     return 0
 

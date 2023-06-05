@@ -80,10 +80,6 @@ python ./validate.py get-attestation-doc/attestation.json
 Note that the intermediate certificates in the chain are short lived, so you may encounter certificate
 validation errors if you attempt to validate an attestation document that is a few days old.
 
-If you run the `validate.py` script on the same EC2 host that is running your enclave image, the `validate`
-script will attempt to validate the hash of the instance ID (PCR4) against the instance ID that it's currently
-running on- 
-
 #### Example output
 
 ```

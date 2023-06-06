@@ -33,8 +33,6 @@ class VsockListener:
                 (from_client, (remote_cid, remote_port)) = self.sock.accept()
                 print("Connection from " + str(from_client) + str(remote_cid) + str(remote_port))
                 
-                # Call the external URL
-                # for our scenario we will download list of published ip ranges and return list of S3 ranges for porvided region.
                 response = self.handler_func(from_client)
                 
                 # Send back the response                 
@@ -59,10 +57,15 @@ def retrieve_attestation(client_fd):
     attestation_buffer_size = ctypes.c_int32(DOC_MAX_SIZE)
     ret = libnsm.nsm_get_attestation_doc(nsm_fd, 0, 0, 0, 0, 0, 0, 
         attestation_buffer, ctypes.byref(attestation_buffer_size))
-        
+    if ret:
+        return json.dumps({
+            "status": "error",
+            "error_code": ret
+        })
     attestation_doc = attestation_buffer.raw[:int(attestation_buffer_size.value)]
     
     return json.dumps({
+        "status": "success",
         "attestation": base64.b64encode(attestation_doc).decode("utf8"),
         "attestation_size": int(attestation_buffer_size.value)
     })

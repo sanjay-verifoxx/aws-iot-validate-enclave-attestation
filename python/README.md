@@ -93,7 +93,6 @@ pip install -r requirements.txt
 Validate the attestation document:
 
 ```
-cd ..
 python3 ./validate.py get-attestation-doc/attestation.json
 ```
 

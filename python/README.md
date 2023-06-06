@@ -58,16 +58,16 @@ python3 ./client.py > attestation.json
 
 #### Troubleshooting side note
 
-If you have trouble running an enclave, use `lspci` and look for the following device in the output:
+If you have trouble running an enclave, run `lspci` and look for the following device in the output:
 
 ```
 00:02.0 Communication controller: Amazon.com, Inc. Device e4c1 (rev 01)
 ```
 
-if you don't see that device, you can enable Enclave support after stopping the instance. 
-(The console makes it seem like you may be able
-to do this when the instance is stopped, but clicking the 'Instance Settings -> Change Nitro Enclaves' under the
-'Actions' menu doesn't do anything). You can use the following CLI command to enable Enclaves after stopping the instance:
+This is the device used to communicate with the Nitro Enclave. If you don't see that device listed in the `lspci` output, 
+Nitro Enclaves are not enabled on your EC2 instance. You can enable Enclave support after stopping the instance. 
+You can do this in the console using the 'Instance Settings -> Change Nitro Enclaves' item under the
+'Actions' menu. You can also use the following CLI command to enable Enclaves after stopping the instance:
 
 ```
 aws ec2 modify-instance-attribute --instance-id <instance_id> --attribute enclaveOptions --value true

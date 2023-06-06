@@ -154,10 +154,10 @@ When you request an attestation from the Enclave, the requestor can provide opti
 are all optional fields that are provided by the requestor, and reflected back in the attestation. In our case, the `client.py`
 script does not provide any values for these optional fields, and so these optional fields are blank.
 
-Next, the script downloads the validates the X.509 certificate chain embedded in the attestation document with the 
-[AWS Nitro Enclaves root certificate](https://aws-nitro-enclaves.amazonaws.com/AWS_NitroEnclaves_Root-G1.zip). If there are
+Next, the script downloads the [AWS Nitro Enclaves root certificate](https://aws-nitro-enclaves.amazonaws.com/AWS_NitroEnclaves_Root-G1.zip)
+and validates the X.509 certificate chain embedded in the attestation document with the root certificate. If there are
 any issues with the certificate validation, a message is printed to the console with the error encountered during the validation.
-If it succeeds, `[+] Certificate validated successfully!` is printed to the console.
+If X.509 certificate validation succeeds, `[+] Certificate validated successfully!` is printed to the console.
 
 Then, the script validates that the attestation is digitally signed with the now validated X.509 certificate from the last
 step. If this step succeeds, `[+] Signature matches, Enclave attestation is valid!` is printed to the console.

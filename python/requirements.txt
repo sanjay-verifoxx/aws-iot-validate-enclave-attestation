@@ -1,4 +1,4 @@
-cbor2
-pycose
-requests
-pyOpenSSL
+cbor2==5.4.6
+pycose==1.0.1
+requests==2.31.0
+pyOpenSSL==23.1.1

@@ -76,20 +76,15 @@ RUN cmake3 --build aws-nitro-enclaves-sdk-c/build --target docs
 FROM public.ecr.aws/amazonlinux/amazonlinux:2 as enclave_base
 WORKDIR /app
 COPY --from=builder /usr/lib64/libnsm.so /usr/lib64/libnsm.so /app/
-COPY --from=builder /usr/bin/kmstool_enclave_cli /app/
 
 #this is the enclave image
 FROM enclave_base
 
-# Install python for running the server and net-tools for modifying network config
-RUN yum install python3 iproute   -y
-ENV AWS_STS_REGIONAL_ENDPOINTS=regional
+# Install python for running the server
+RUN yum install python3  -y
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/app
 
 WORKDIR /app
-
-# COPY requirements.txt ./
-# RUN pip3 install -r /app/requirements.txt
 
 COPY server.py ./
 COPY run.sh ./

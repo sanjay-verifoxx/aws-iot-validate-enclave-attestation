@@ -26,8 +26,6 @@ from pycose.keys.curves import CoseCurve
 from pycose.keys.keyparam import EC2KpCurve, EC2KpX, EC2KpY
 from pycose.keys.ec2 import EC2Key
 
-from ec2_metadata import ec2_metadata
-
 
 def get_nitro_root_certificate():
     # # Download the root CA from AWS

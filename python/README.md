@@ -1,6 +1,12 @@
 ## Validate a Nitro Enclave Attestation Document 
 
-This repository contains an example on how to obtain an attestation document under the `get-attestation-doc` subdirectory.
+This repository contains example Python code to:
+* obtain an attestation document under the `get-attestation-doc` subdirectory
+* validate the attestation document in `validate.py`
+
+An example attestation document is included as `example-attestation-doc.json` if you do not wish to generate
+a Nitro Enclaves attestation document yourself. Note that the certificate lifetime is only about one day,
+so the example attestation will not validate as the attestation was obtained more than a day ago.
 
 ### Obtaining an attestation document
 
@@ -18,8 +24,7 @@ Run the following commands to install the required prerequisites:
 
 ```
 sudo amazon-linux-extras install aws-nitro-enclaves-cli -y # not needed on Amazon Linux 2023
-sudo yum install aws-nitro-enclaves-cli-devel -y
-sudo yum install aws-nitro-enclaves-cli -y
+sudo yum install aws-nitro-enclaves-cli-devel aws-nitro-enclaves-cli git -y
 sudo usermod -aG ne $USER
 sudo usermod -aG docker $USER
 
@@ -28,6 +33,8 @@ sudo sed -r "s/^(\s*memory_mib\s*:\s*).*/\13072/" -i "/etc/nitro_enclaves/alloca
 sudo systemctl start nitro-enclaves-allocator.service && sudo systemctl enable nitro-enclaves-allocator.service
 sudo systemctl start docker && sudo systemctl enable docker
 ```
+
+You will have to log out and log back in for the `usermod` to take effect before continuing.
 
 Build the docker image and Enclave image file:
 
@@ -46,21 +53,21 @@ nitro-cli run-enclave --eif-path ./get-attestation-doc.eif  --cpu-count 2 --memo
 Generate an attestation document:
 
 ```
-python ./client.py > attestation.json
+python3 ./client.py > attestation.json
 ```
 
 #### Troubleshooting side note
 
-If you have trouble running an enclave, use `lspci` and look for the following device in the output:
+If you have trouble running an enclave, run `lspci` and look for the following device in the output:
 
 ```
 00:02.0 Communication controller: Amazon.com, Inc. Device e4c1 (rev 01)
 ```
 
-if you don't see that device, you can enable Enclave support after stopping the instance. 
-(The console makes it seem like you may be able
-to do this when the instance is stopped, but clicking the 'Instance Settings -> Change Nitro Enclaves' under the
-'Actions' menu doesn't do anything). You can use the following CLI command to enable Enclaves after stopping the instance:
+This is the device used to communicate with the Nitro Enclave. If you don't see that device listed in the `lspci` output, 
+Nitro Enclaves are not enabled on your EC2 instance. You can enable Enclave support after stopping the instance. 
+You can do this in the console using the 'Instance Settings -> Change Nitro Enclaves' item under the
+'Actions' menu. You can also use the following CLI command to enable Enclaves after stopping the instance:
 
 ```
 aws ec2 modify-instance-attribute --instance-id <instance_id> --attribute enclaveOptions --value true
@@ -70,17 +77,35 @@ aws ec2 modify-instance-attribute --instance-id <instance_id> --attribute enclav
 
 The script in `validate.py` implements the steps outlined in the [Nitro Enclaves Attestation Process](https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md) documentation.
 
-Validate the attestation document:
+If you're in the `get-attestation-doc` directory, change directories back up one level:
 
 ```
 cd ..
-python ./validate.py get-attestation-doc/attestation.json
+```
+
+First, install the prerequisite python modules:
+
+```
+python3 -mensurepip
+pip install -r requirements.txt
+```
+
+Validate the attestation document:
+
+```
+python3 ./validate.py get-attestation-doc/attestation.json
 ```
 
 Note that the intermediate certificates in the chain are short lived, so you may encounter certificate
-validation errors if you attempt to validate an attestation document that is a few days old.
+validation errors if you attempt to validate an attestation document that is over a day old.
+
+You do not need to validate the attestation document on the EC2 instance itself. Feel free to copy the
+`attestation.json` file to another host, install the python modules and run the `validate.py` script on
+another host.
 
 #### Example output
+
+If everything worked successfully, you should see output such as the following:
 
 ```
 Nitro Attestation Document for i-0c3e1240d05814245-enc01888d07eab95175:
@@ -118,6 +143,27 @@ hash of instance id (i-0c3e1240d05814245) = 5f1c47b54f0cfa99efb073d83dd236678554
 [+] Hashes match for ec2 instance id
 ```
 
+The `validate.py` script first validates the syntax of the attestation document, ensuring that it follows the
+[Nitro Enclaves attestation specification](https://github.com/aws/aws-nitro-enclaves-nsm-api/blob/main/docs/attestation_process.md).
+If any errors are encountered, an exception is logged to the console and the script exits.
+
+The script then dumps out the contents of the attestation document's data fields, including the 
+[PCR values](https://docs.aws.amazon.com/enclaves/latest/user/set-up-attestation.html#where).
+When you request an attestation from the Enclave, the requestor can provide optional data: the public key, user data, and nonce
+are all optional fields that are provided by the requestor, and reflected back in the attestation. In our case, the `client.py`
+script does not provide any values for these optional fields, and so these optional fields are blank.
+
+Next, the script downloads the [AWS Nitro Enclaves root certificate](https://aws-nitro-enclaves.amazonaws.com/AWS_NitroEnclaves_Root-G1.zip)
+and validates the X.509 certificate chain embedded in the attestation document with the root certificate. If there are
+any issues with the certificate validation, a message is printed to the console with the error encountered during the validation.
+If X.509 certificate validation succeeds, `[+] Certificate validated successfully!` is printed to the console.
+
+Then, the script validates that the attestation is digitally signed with the now validated X.509 certificate from the last
+step. If this step succeeds, `[+] Signature matches, Enclave attestation is valid!` is printed to the console.
+
+Finally, the script demonstrates how to validate the PCR4 value by extracting the EC2 instance ID from the enclave
+attestation document and validating the hash of that instance ID with the PCR4 value. If this step succeeds, you will see
+the hash calculated matches the PCR4 value above and `[+] Hashes match for ec2 instance id` is printed to the console.
 
 ## Security
 

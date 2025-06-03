@@ -87,7 +87,13 @@ First, install the prerequisite python modules:
 
 ```
 python3 -mensurepip
-pip install -r requirements.txt
+rm -rf ~/.local/lib/python3.7/site-packages/*
+mv ~/.local/lib/python3.7 ~/.local/lib/python3.7.bak
+pip3 install "urllib3<2.0" "requests==2.31.0"
+pip3 install pyOpenSSL==23.1.1
+pip3 install cbor2==5.4.6
+pip3 install pycose==1.0.1
+
 ```
 
 Validate the attestation document:

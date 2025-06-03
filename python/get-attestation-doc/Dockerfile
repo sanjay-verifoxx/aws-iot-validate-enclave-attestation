@@ -61,8 +61,12 @@ RUN git clone -b json-c-0.16-20220414 https://github.com/json-c/json-c.git
 RUN cmake3 -DCMAKE_PREFIX_PATH=/usr -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_SHARED_LIBS=OFF -GNinja -S json-c -B json-c/build
 RUN cmake3 --build json-c/build --target install
 
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustup install stable && rustup default stable
+
 RUN git clone -b v0.1.0 https://github.com/aws/aws-nitro-enclaves-nsm-api.git
-RUN source $HOME/.cargo/env && cd aws-nitro-enclaves-nsm-api && cargo build --release -p nsm-lib
+RUN cd aws-nitro-enclaves-nsm-api && cargo build --release -p nsm-lib
 RUN mv aws-nitro-enclaves-nsm-api/target/release/libnsm.so /usr/lib64
 RUN mv aws-nitro-enclaves-nsm-api/target/release/nsm.h /usr/include
 
